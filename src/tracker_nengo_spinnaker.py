@@ -1,39 +1,44 @@
 PKG = 'moritz_nengo_snn_object_tracking'
-import roslib; roslib.load_manifest(PKG)
-
+import roslib
+roslib.load_manifest(PKG)
+import ipdb
 import nstbot
 import numpy as np
 import nengo
 import rospy
 from std_msgs.msg import Int64
 
+
 class output_ros():
     def __init__(self):
-        self._initialized = false
+        self._initialized = False
 
-        #Init Node:
+        # Init Node:
         self.name = "nengo_snn"
         rospy.init_node(self.name)
 
-        #Init Publishers:
+        # Init Publishers:
         self._pan_pub = rospy.Publisher("/head/pan", Int64, queue_size=1)
         self._tilt_pub = rospy.Publisher("/head/tilt", Int64, queue_size=1)
 
-        #Done:
-        self._initialized = true
+        # Done:
+        self._initialized = True
 
     def publish(self, step, arr):
         if self._initialized:
             arr.reshape(5, 5)
 
-            result = np.argmax(arr) / arr.shape[0] -2 , np.argmax(arr) % arr.shape[0] -2
+            result = np.argmax(
+                arr) / arr.shape[0] - 2, np.argmax(arr) % arr.shape[0] - 2
 
-            #Publish results:
+            # Publish results:
             self._pan_pub.publish(result[0])
             self._tilt_pub.publish(result[1])
 
-            #Log:
-            rospy.loginfo("Moving by " + str(result) + ". Timestep: " + str(t));
+            # Log:
+            rospy.loginfo("Moving by " + str(result) +
+                          ". Timestep: " + str(step))
+
 
 publisher = output_ros()
 
@@ -43,20 +48,22 @@ weightMatrix_h = np.load('weights/connectivity_h.npy')
 weightMatrix_corner = np.load('weights/connectivity_c.npy')
 
 n_features = np.size(weightMatrix_v, 0)
-n_corners = 25
+n_corners = np.size(weightMatrix_corner, 0)
+
 cam_dim = 128
 edvs = nstbot.RetinaBot()
 edvs.connect(nstbot.Serial('/dev/ttyUSB0', baud=4000000))
 edvs.retina(True)
-# Either we use show image to visualize what is happing
-# edvs.keep_image()
 edvs.show_image()
 prob = 0.6
 elementsToDelete = int(np.floor(prob * n_features))
 
 
 def stim_func(t):
-    return edvs.image.flatten()
+    stim = edvs.image.flatten()
+    ind_delete = np.random.rand(len(stim))
+    stim[ind_delete < 0.5] = 0
+    return stim
 
 
 model = nengo.Network()
@@ -112,22 +119,23 @@ with model:
                          function=dummy_func,
                          solver=DummySolver(np.eye(n_features)[i:i + 1, :]))
 
-
-
     output = nengo.Node(publisher.publish, size_in=n_corners)
     nengo.Connection(cornerLayer, output, function=(lambda x: np.zeros(n_corners)),
                      solver=DummySolver(np.eye(n_corners)), synapse=0.1)
+    nengo.connection(cornerLayer, cornerLayer.neurons, function=(lambda x: 0),
+                     solver=DummySolver(np.ones((1, n_corners)) * -0.1), synapse=0.1)
 
 if __name__ == '__main__':
     import nengo_spinnaker
     import logging
-
+    rec = False
     publisher = output_ros()
     logging.basicConfig(level=logging.DEBUG)
-    # with model:
-        # probes_v = [nengo.Probe(e.neurons) for e in featureMap_v.ensembles]
-        # probes_h = [nengo.Probe(e.neurons) for e in featureMap_h.ensembles]
-        # probe_c = nengo.Probe(cornerLayer.neurons)
+    if rec:
+        with model:
+            probes_v = [nengo.Probe(e.neurons) for e in featureMap_v.ensembles]
+            probes_h = [nengo.Probe(e.neurons) for e in featureMap_h.ensembles]
+            probe_c = nengo.Probe(cornerLayer.neurons)
 
     sim = nengo_spinnaker.Simulator(model)
     # sim = nengo.Simulator(model)
@@ -135,14 +143,12 @@ if __name__ == '__main__':
     print 'Starting simulation SpiN'
     while True:
         sim.run(20)
+    if rec:
+        data_v = np.hstack([sim.data[p] for p in probes_v])
+        data_h = np.hstack([sim.data[p] for p in probes_h])
+        data_c = sim.data[probe_c]
 
-    # print sim.data[probe_c]
-    # data_v = np.hstack([sim.data[p] for p in probes_v])
-    # data_h = np.hstack([sim.data[p] for p in probes_h])
-    # data_c = sim.data[probe_c]
-
-    # np.save('./outputs/featureMap_v.npy', data_v)
-    # np.save('./outputs/featureMap_h.npy', data_h)
-    # np.save('./outputs/cornerLayer.npy', data_c)
-    # print 'Saving Done!'
-    # print data_v.shape
+        np.save('./outputs/featureMap_v.npy', data_v)
+        np.save('./outputs/featureMap_h.npy', data_h)
+        np.save('./outputs/cornerLayer.npy', data_c)
+        print 'Saving Done!'
