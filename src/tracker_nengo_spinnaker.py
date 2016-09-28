@@ -48,14 +48,14 @@ weightMatrix_h = np.load('weights/connectivity_h.npy')
 weightMatrix_corner = np.load('weights/connectivity_c.npy')
 
 n_features = np.size(weightMatrix_v, 0)
-n_corners = np.size(weightMatrix_corner, 0)
+n_corners = 25
 
 cam_dim = 128
 edvs = nstbot.RetinaBot()
 edvs.connect(nstbot.Serial('/dev/ttyUSB0', baud=4000000))
 edvs.retina(True)
 edvs.show_image()
-prob = 0.6
+prob = 0.3
 elementsToDelete = int(np.floor(prob * n_features))
 
 
@@ -122,8 +122,9 @@ with model:
     output = nengo.Node(publisher.publish, size_in=n_corners)
     nengo.Connection(cornerLayer, output, function=(lambda x: np.zeros(n_corners)),
                      solver=DummySolver(np.eye(n_corners)), synapse=0.1)
-    nengo.connection(cornerLayer, cornerLayer.neurons, function=(lambda x: 0),
-                     solver=DummySolver(np.ones((1, n_corners)) * -0.1), synapse=0.1)
+    nengo.Connection(cornerLayer, cornerLayer.neurons, function=(lambda x: 0),
+                     solver=DummySolver(np.ones((1, n_corners))), synapse=0.1,
+                     transform=np.ones((n_corners, 1)) * -0.1)
 
 if __name__ == '__main__':
     import nengo_spinnaker
