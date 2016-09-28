@@ -7,22 +7,33 @@ import nengo
 import rospy
 from std_msgs.msg import Int64
 
-node_name = "nengo_snn"
-rospy.init_node(node_name)
-
-
 class output_ros():
     def __init__(self):
+        self._initialized = false
+
+        #Init Node:
+        self.name = "nengo_snn"
+        rospy.init_node(self.name)
+
+        #Init Publishers:
         self._pan_pub = rospy.Publisher("/head/pan", Int64, queue_size=1)
         self._tilt_pub = rospy.Publisher("/head/tilt", Int64, queue_size=1)
 
-    def publish(self, arr):
-        arr.reshape(5, 5)
+        #Done:
+        self._initialized = true
 
-        result = np.argmax(arr) / arr.shape[0] -2 , np.argmax(arr) % arr.shape[0] -2
-        self._pan_pub.publish(result[0])
-        self._tilt_pub.publish(result[1])
+    def publish(self, step, arr):
+        if self._initialized:
+            arr.reshape(5, 5)
 
+            result = np.argmax(arr) / arr.shape[0] -2 , np.argmax(arr) % arr.shape[0] -2
+
+            #Publish results:
+            self._pan_pub.publish(result[0])
+            self._tilt_pub.publish(result[1])
+
+            #Log:
+            rospy.loginfo("Moving by " + str(result) + ". Timestep: " + str(t));
 
 publisher = output_ros()
 
@@ -101,12 +112,9 @@ with model:
                          function=dummy_func,
                          solver=DummySolver(np.eye(n_features)[i:i + 1, :]))
 
-    def output_func(t, x):
-        publisher.publish(x)
 
 
-
-    output = nengo.Node(output_func, size_in=n_corners)
+    output = nengo.Node(publisher.publish, size_in=n_corners)
     nengo.Connection(cornerLayer, output, function=(lambda x: np.zeros(n_corners)),
                      solver=DummySolver(np.eye(n_corners)), synapse=0.1)
 
