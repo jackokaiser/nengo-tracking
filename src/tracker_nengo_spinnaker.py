@@ -55,7 +55,7 @@ edvs = nstbot.RetinaBot()
 edvs.connect(nstbot.Serial('/dev/ttyUSB0', baud=4000000))
 edvs.retina(True)
 edvs.show_image()
-prob = 0.3
+prob = 0.35
 elementsToDelete = int(np.floor(prob * n_features))
 
 
@@ -64,7 +64,7 @@ def stim_func(t):
     stim = np.flipud(np.fliplr(stim))
     stim = stim.flatten()
     ind_delete = np.random.rand(len(stim))
-    stim[ind_delete < 0.5] = 0
+    stim[ind_delete < 0.3] = 0
     return stim
 
 
