@@ -60,7 +60,9 @@ elementsToDelete = int(np.floor(prob * n_features))
 
 
 def stim_func(t):
-    stim = edvs.image.flatten()
+    stim = edvs.image
+    stim = np.flipud(np.fliplr(stim))
+    stim = stim.flatten()
     ind_delete = np.random.rand(len(stim))
     stim[ind_delete < 0.5] = 0
     return stim
