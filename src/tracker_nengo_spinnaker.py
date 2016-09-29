@@ -7,6 +7,7 @@ import numpy as np
 import nengo
 import rospy
 from std_msgs.msg import Int64
+from std_msgs.msg import Bool
 
 
 class output_ros():
@@ -20,20 +21,29 @@ class output_ros():
         # Init Publishers:
         self._pan_pub = rospy.Publisher("/head/pan", Int64, queue_size=1)
         self._tilt_pub = rospy.Publisher("/head/tilt", Int64, queue_size=1)
+        self._tilt_pub = rospy.Publisher("/head/tilt", Int64, queue_size=1)
+
+        #self._sub = rospy.Subscriber("/robohead/is_moving", Bool, on_moving)
 
         # Done:
         self._initialized = True
 
     def publish(self, step, arr):
         if self._initialized:
-            arr.reshape(5, 5)
+           #arr = np.ones(25)
+           #arr[4] = 2
 
-            result = np.argmax(
-                arr) / arr.shape[0] - 2, np.argmax(arr) % arr.shape[0] - 2
+            if max(arr) <= 0.01:
+                result = 0, 0
+            else:
+                arr = arr[::-1].reshape(5, 5)
+                assert(arr.shape == (5,5))
+                print(arr > np.max(arr)/2)
+                result = np.unravel_index(np.argmax(arr),arr.shape) - np.array((2,2))
 
             # Publish results:
-            self._pan_pub.publish(result[0])
-            self._tilt_pub.publish(result[1])
+            self._pan_pub.publish(-result[0])
+            self._tilt_pub.publish(-result[1])
 
             # Log:
             rospy.loginfo("Moving by " + str(result) +
@@ -64,7 +74,7 @@ def stim_func(t):
     stim = np.flipud(np.fliplr(stim))
     stim = stim.flatten()
     ind_delete = np.random.rand(len(stim))
-    stim[ind_delete < 0.3] = 0
+    stim[ind_delete <= 0.6] = 0
     return stim
 
 
@@ -125,8 +135,8 @@ with model:
     nengo.Connection(cornerLayer, output, function=(lambda x: np.zeros(n_corners)),
                      solver=DummySolver(np.eye(n_corners)), synapse=0.1)
     nengo.Connection(cornerLayer, cornerLayer.neurons, function=(lambda x: 0),
-                     solver=DummySolver(np.ones((1, n_corners))), synapse=0.1,
-                     transform=np.ones((n_corners, 1)) * -0.1)
+                     solver=DummySolver(np.ones((n_corners, 1))), synapse=0.2,
+                     transform=np.ones((n_corners, 1)) * -10.)
 
 if __name__ == '__main__':
     import nengo_spinnaker
